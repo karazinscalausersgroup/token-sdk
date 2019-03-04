@@ -1,7 +1,7 @@
 package com.r3.corda.sdk.token.workflow.statesAndContracts
 
 import com.r3.corda.sdk.token.contracts.EvolvableTokenContract
-import com.r3.corda.sdk.token.contracts.states.EvolvableToken
+import com.r3.corda.sdk.token.contracts.states.EvolvableTokenType
 import com.r3.corda.sdk.token.money.FiatCurrency
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.BelongsToContract
@@ -17,9 +17,9 @@ data class House(
         val address: String,
         val valuation: Amount<FiatCurrency>,
         override val maintainers: List<Party>,
-        override val displayTokenSize: BigDecimal = BigDecimal.ONE,
+        override val displayTokenSize: BigDecimal = BigDecimal.TEN,
         override val linearId: UniqueIdentifier = UniqueIdentifier()
-) : EvolvableToken()
+) : EvolvableTokenType()
 
 // TODO: When contract scanning bug is fixed then this does not need to implement Contract.
 class HouseContract : EvolvableTokenContract(), Contract {
@@ -40,6 +40,6 @@ class HouseContract : EvolvableTokenContract(), Contract {
     }
 
     override fun verify(tx: LedgerTransaction) {
-
+        super.verify(tx)
     }
 }

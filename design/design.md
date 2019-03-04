@@ -27,7 +27,7 @@ The diagram depicts two forms of fiat currency:
 * *Central bank reserves* are a liability of central banks. In the past, central bank reserves were backed by physical assets and redeemable on demand but these days this usually not the case; the central bank will mostly hold government bonds, repos and other types of debt on their debt on the asset side of their balance sheet.
 * A *commercial bank deposit*, or "cash" as it is known to most people, is a **liability of your bank to deliver a liability of the central bank**.
 
-In summary: fiat currency, in whatever form, is just an accounting entry. This is despite the fact that cash "feels" like an "ownable" thing. Indeed, in Corda to date, cash is modelled as an ownable thing (`OwnableState` / `FungibleAsset`). However, really, it is an agreement between an obligor (the bank), and a beneficiary (the owner).
+In summary: fiat currency, in whatever form, is just an accounting entry. This is despite the fact that cash *feels* like an "ownable" thing. Indeed, in Corda to date, cash is modelled as an ownable thing (`OwnableState` / `FungibleAsset`). However, really, it is an agreement between an obligor (the bank), and a beneficiary (the owner).
 
 When sending a cash state to another party with Corda, the receiving party must traverse the chain of provenance to assure themselves that what they are receiving really is a valid claim on an issuer (obligor).
 
@@ -71,22 +71,22 @@ The nature of the issuer, whether they are a custodian or bank, for example, is 
 
 There are some forms of non-agreements which can exist on ledger: crypto-currencies and utility tokens which confer no rights. These are new-World digital assets and the Corda state model should be flexible enough to support them. In the proposed tokens model, these non-agreements would either be assigned an issuer which is a well known public key which represents a set of miners or a NULL public key.
 
-Lastly, it goes without saying that any state object which contains only a single participant clearly cannot be an agreement. 
+Lastly, it goes without saying that any state object which contains only a single participant clearly cannot be an agreement.
 
 ## Required additions to the core data model
 
 The current versions of `ContractState` , `OwnableState` and `LinearState` in Corda Core are used as they exist today. As a refresher:
 
-* `ContractState` is the base state definition in Corda. It requires implementations to define a `participants` list. This are the parties for which the state is relevant.
-* `OwnableState` adds the cofncept of an owner to a state object
-* `LinearState`s adds the concept of a `linearId` , this is useful for keeping track of states which represent a workflow, or non-fungible things.
+* `ContractState` is the base state definition in Corda. It requires implementations to define a `participants` list, which is a list of parties for which the state is relevant. I.e. only these parties will store this version of the state in their vault unless `StatesToRecord.ALL_VISIBLE` is used.
+* `OwnableState` adds the concept of an owner to a state object. the `owner` is typically the only participant in an `OwnableState`.
+* `LinearState`s add the concept of a `linearId` , this is useful for keeping track of states which represent a workflow, or non-fungible things. The `linearId` represents a particular lineage of `LinearState`s.
 
 ### FungibleState
 
 In addition to the above, a new `FungibleState` has been added for the following reasons:
 
 * The old `FungibleAsset` state clearly assumes that the "thing" in question is a financial instrument but this is not always the case. Also, referring to states as "assets" is confusing, as one `Party`'s asset is another `Party`'s liability. Furthermore, fungible derivative contracts such as standardised exchange traded furtures contracts can flip from being a balance sheet asset or liability depending on the price of the underlying instrument. As such, the term "asset" and related nomenclature will be avoided. Instead, we will refer to tokens—which are agreements between issuers and owners.
-* `FungibleAsset` implements `OwnableState` , as such there is an assumption that all fungible things are ownable. This is not always true as fungible derivative contracts exist, for example.
+* `FungibleAsset` implements `OwnableState` , as such there is an assumption that all fungible things are ownable. This is not always true, as fungible derivative contracts exist, for example.
 
 The new `FungibleState` is simply defined as:
 
@@ -111,9 +111,9 @@ data class FooState(val ref: StateRef) : ContractState
 `StatePointer`s come in two variants:
 
 * `StaticPointer`s which refer to a specific `StateRef`, or; 
-*  `LinearPointer`s which allow a `ContractState` to "point" to the most up-to-date version of a state. Instead of linking to a specific `StateRef`, using a `StaticPointer` a, `LinearPointer` contains the `linearId` of the lineage of `LinearState` to point to.
+*  `LinearPointer`s which allow a `ContractState` to "point" to the most up-to-date version of a `LinearState`. Instead of linking to a specific `StateRef`, using a `StaticPointer` a, `LinearPointer` contains the `linearId` of the lineage of `LinearState` to point to. It goes without saying that `LinearPointer`s can only be used with `LinearState`s
 
-State pointing is a useful pattern when one state depends on the contained data within another state and there is an expectation that the state being depended upon will involve independently to the depending state.
+State pointing is a useful pattern when one state depends on the contained data within another state and there is an expectation that the state being depended upon will involve independently to the depending state. This might be to divide responsibility for updates or to compartmentalise data for privacy reasons.
 
 ```kotlin
 class LinearPointer<T : LinearState>(
@@ -138,9 +138,9 @@ class LinearPointer<T : LinearState>(
 The `LinearPointer` contains the `linearId` of the `LinearState` being pointed to and two `resolve` methods. Resolving a `LinearPointer` returns a `StateAndRef` containing the latest version of the `LinearState` that the node calling `resolve` is aware of. There are two issues to note with `LinearPointer`s:
 
 1. If the node calling `resolve` has not seen any transactions containing a `LinearState` with the specified `linearId` then `resolve` will return null .
-2. Even if the node calling `resolve` has seen and stored transactions containing a `LinearState` with the specified `linearId` , there is no guarantee the `StateAndRef` returned is the most recent version of the LinearState .
+2. Even if the node calling `resolve` has seen and stored transactions containing a `LinearState` with the specified `linearId` , there is no guarantee the `StateAndRef` returned is the most recent version of the `LinearState`. This might be because the node in question doesn't have the most up-to-date transaction, and/or does have the most up-to-date transaction but the `LinearState` with the specified `linearId` was not stored in the vault.
 
-Both of the above problems can be resolved by adding the pointed-to `LinearState` as a [reference state](https://github.com/corda/corda/blob/master/docs/source/design/reference-states/design.md) to the transaction containing the state with the `LinearPointer` . This way, the pointed-to state travels around with the pointer, such that the `LinearPointer` can always be resolved. Furthermore, the reference states feature will ensure that the pointed-to state remains current. It's worth noting that embedding the pointed-to state may not always be preferable, especially if it is quite large.
+Both of the above problems can be resolved by adding the pointed-to `LinearState` as a [reference state](https://github.com/corda/corda/blob/master/docs/source/design/reference-states/design.md) to the transaction containing the state with the `LinearPointer` . This way, the pointed-to state travels around with the pointer, such that the `LinearPointer` can always be resolved. Furthermore, the reference states feature will ensure that the pointed-to state remains current. It's worth noting that embedding the pointed-to state may not always be preferable, especially if it is quite large but in the majority of cases, this won't be a problem.
 
 From Corda 4 onwards, the `TransactionBuilder` [automatically resolves](https://github.com/corda/corda/blob/master/core/src/main/kotlin/net/corda/core/transactions/TransactionBuilder.kt#L517) `StatePointer`s to `StateAndRef`s and includes those `StateAndRef`s as reference states in the transaction. 
 
@@ -162,30 +162,56 @@ To aid understanding of the (rather complex looking) diagram, it can be split in
 
 #### Token
 
-A `Token` is an overarching interface for all things `Token` related. All tokens implement this interface. `Token` refers to a "type of thing" as opposed to the vehicle which is used to assign units of a token to a particular owner. For that we use the  `OwnedToken` state for assigning non-fungible tokens to an owner and the `OwnedTokenAmount` state for assigning amounts of some fungible token to an owner. The interface implements `TokenizableAssetInfo` because in almost all cases, the `Token` must define the nominal display unit of a single `Token`. 
+A `Token` is an overarching interface for all things `Token` related. All tokens implement this interface. **`Token` refers to a "type of thing" as opposed to the vehicle which is used to assign units of a token to a particular owner.** For that we use the  `OwnedToken` state for assigning non-fungible tokens to an owner and the `OwnedTokenAmount` state for assigning amounts of some fungible token to an owner. The interface implements `TokenizableAssetInfo` because in almost all cases, the `Token` must define the nominal display unit of a single `Token`. JYP has zero fraction digits, whereas most currencies have two fraction digits, for example. Therefore, to be able to reason about amounts of tokens arithmetically, we must define the fraction digits.
 
 ```kotlin
+@CordaSerializable
 interface Token : TokenizableAssetInfo
 ```
 
 #### EmbeddableToken
 
-`EmbeddableToken`s are `Token`s which can be composed into an [OwnedToken] or an [OwnedTokenAmount]. They are almost always wrapped with an [Issued] class.
+`EmbeddableToken`s are `Token`s which can be composed into an `OwnedToken` or an `OwnedTokenAmount`. They are almost always wrapped with an `IssuedToken` class. The idea behind this interface is that whilst `EvolvableToken`s (see below) are `Token`s, they cannot be composed into `OwnedToken` or `OwnedTokenAmount`.
 
 ```kotlin
-@CordaSerializable
 sealed class EmbeddableToken : Token
 ```
 
 #### FixedToken
 
-A [FixedToken] is where the definition of a token is inlined into the [OwnedToken] or [OwnedTokenAmount] class. This is for tokens which you don't expect to evolve. Note that [FixedToken]s are not states! They don't need to be because the definition of the token never changes or hardly ever changes. You are certainly likely to use this when testing or creating tokens for currencies. If you do need to make changes to a [FixedToken] then they need to be made through upgrading your CorDapp. Then by redeeming and re-issuing the [OwnedToken] or [OwnedTokenAmount] with the new token. However, if your token is likely to need updating often, then use the [EvolvableToken] type.
+A `FixedToken` is where the definition of a token is inlined into the `OwnedToken` or `OwnedTokenAmount` class. This is for tokens which you don't expect to evolve. Note that `FixedToken`s are **not** states! They don't need to be because the definition of the token never changes or hardly ever changes. You are certainly likely to use this when testing or creating tokens for currencies (which don't typically evolve). If you do need to make changes to a `FixedToken` then they need to be made by either:
+
+1. Upgrading your state and contract (see implicit and explicit upgrades in the Corda docs), or;
+2. By specifying a new version of the token and then redeeming and re-issuing the `OwnedToken` or `OwnedTokenAmount` with the new token. 
+
+However, if your token is likely to need updating often, then use the `EvolvableToken` type.
 
 ```kotlin
 abstract class FixedToken : EmbeddableToken() {
     abstract val symbol: String
 }
 ```
+
+#### EvolvableToken
+
+`EvolvableToken`s _are_ state objects because the expectation is that they will evolve over time. Of course in-lining a `LinearState` directly into the `OwnedToken` or `OwnedTokenAmount` state doesn't make much sense, as you would have to perform a state update to change the token type. Instead, it makes more sense to include a pointer to the token type. That's what `TokenPointer` is for (see below). This way, the token can evolve independently to which party currently owns (some amount of) the token. Because the `EvolvableToken` is not inlined into the `OwnedToken` or `OwnedTokenAmount` state it does not sub-class `EmbeddableToken`.
+
+```kotlin
+abstract class EvolvableToken : LinearState, TokenizableAssetInfo {
+    abstract val maintainers: List<Party>
+
+    /** Defaults to the maintainer but can be overridden if necessary. */
+    override val participants: List<AbstractParty> get() = maintainers
+
+    /** For obtaining a pointer to this [EvolveableToken]. */
+    inline fun <reified T : EvolvableToken> toPointer(): TokenPointer<T> {
+        val linearPointer = LinearPointer(linearId, T::class.java)
+        return TokenPointer(linearPointer, displayTokenSize)
+    }
+}
+```
+
+It is expected that a specific set of `Party`s create and maintain `EvolvableToken`s. Note, that these `Party`s don't necessarily _have_ to be the issuer of the `EvolvableToken`. It probably _is_ the issuer of the token but may not necessarily be. For example, a reference data maintainer may create an [EvolvableToken] for some stock, keep all the details up-to-date, and distribute the updates… This [EvolvableToken], can then be used by many issuers to create [OwnedTokenAmount]s (depository receipts) for the stock in question. Also the actual stock issuer (if they had a Corda node on the network) could use the same stock token to issue ledger native stock.
 
 #### TokenPointer
 
@@ -462,3 +488,8 @@ When used in `FungibleToken`s, `TokenDescription`s are composed into `TokenType.
 * Investigate how linar pointers affect coin seelction. Looks at denormalising data to reduce the time needed for selecting coins.
 * Explain how other types of composition would work. For example, where a `TokenDescription` comprises multiple other `TokenDescription`s. For example: Mortgage securitisation.
 * Introduce the concept of obligations and how it fits in with Token types. "An obligation to deliver 10 of X token type".
+
+Terminology
+
+1. Token Creator. The party which creates `EvolvableToken` states on the ledger or creates `FixedToken` defintions. Note that token creator is different to token issuer.
+2. Token Issuer

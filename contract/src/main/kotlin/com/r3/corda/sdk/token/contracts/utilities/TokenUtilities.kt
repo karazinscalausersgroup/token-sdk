@@ -1,11 +1,12 @@
 package com.r3.corda.sdk.token.contracts.utilities
 
-import com.r3.corda.sdk.token.contracts.states.OwnedToken
-import com.r3.corda.sdk.token.contracts.states.OwnedTokenAmount
-import com.r3.corda.sdk.token.contracts.types.EmbeddableToken
-import com.r3.corda.sdk.token.contracts.types.IssuedToken
+import com.r3.corda.sdk.token.contracts.states.AbstractToken
+import com.r3.corda.sdk.token.contracts.states.EvolvableTokenType
+import com.r3.corda.sdk.token.contracts.states.FungibleToken
+import com.r3.corda.sdk.token.contracts.states.NonFungibleToken
+import com.r3.corda.sdk.token.contracts.types.IssuedTokenType
+import com.r3.corda.sdk.token.contracts.types.TokenType
 import net.corda.core.contracts.Amount
-import net.corda.core.contracts.ContractState
 import net.corda.core.contracts.TransactionState
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.Party
@@ -14,78 +15,113 @@ import java.math.BigDecimal
 
 /** Helpers for composing tokens with issuers, owners and amounts. */
 
-// For parsing amount quantities of embeddable tokens that are not wrapped with an issuer. Like so: 1_000.GBP.
-fun <T : EmbeddableToken> AMOUNT(amount: Int, token: T): Amount<T> = AMOUNT(amount.toLong(), token)
+// For parsing amount quantities of tokens that are not wrapped with an issuer. Like so: 1_000.GBP.
+fun <T : TokenType> amount(amount: Int, token: T): Amount<T> = amount(amount.toLong(), token)
 
-fun <T : EmbeddableToken> AMOUNT(amount: Long, token: T): Amount<T> = Amount.fromDecimal(BigDecimal.valueOf(amount), token)
-fun <T : EmbeddableToken> AMOUNT(amount: Double, token: T): Amount<T> = Amount.fromDecimal(BigDecimal.valueOf(amount), token)
-fun <T : EmbeddableToken> AMOUNT(amount: BigDecimal, token: T): Amount<T> = Amount.fromDecimal(amount, token)
+fun <T : TokenType> amount(amount: Long, token: T): Amount<T> = Amount.fromDecimal(BigDecimal.valueOf(amount), token)
+fun <T : TokenType> amount(amount: Double, token: T): Amount<T> = Amount.fromDecimal(BigDecimal.valueOf(amount), token)
+fun <T : TokenType> amount(amount: BigDecimal, token: T): Amount<T> = Amount.fromDecimal(amount, token)
 
 // As above but works with embeddable tokens wrapped with an issuer.
-fun <T : EmbeddableToken> AMOUNT(amount: Int, token: IssuedToken<T>): Amount<IssuedToken<T>> = AMOUNT(amount.toLong(), token)
+fun <T : TokenType> amount(amount: Int, token: IssuedTokenType<T>): Amount<IssuedTokenType<T>> {
+    return amount(amount.toLong(), token)
+}
 
-fun <T : EmbeddableToken> AMOUNT(amount: Long, token: IssuedToken<T>): Amount<IssuedToken<T>> = Amount.fromDecimal(BigDecimal.valueOf(amount), token)
-fun <T : EmbeddableToken> AMOUNT(amount: Double, token: IssuedToken<T>): Amount<IssuedToken<T>> = Amount.fromDecimal(BigDecimal.valueOf(amount), token)
-fun <T : EmbeddableToken> AMOUNT(amount: BigDecimal, token: IssuedToken<T>): Amount<IssuedToken<T>> = Amount.fromDecimal(amount, token)
+fun <T : TokenType> amount(amount: Long, token: IssuedTokenType<T>): Amount<IssuedTokenType<T>> {
+    return Amount.fromDecimal(BigDecimal.valueOf(amount), token)
+}
+
+fun <T : TokenType> amount(amount: Double, token: IssuedTokenType<T>): Amount<IssuedTokenType<T>> {
+    return Amount.fromDecimal(BigDecimal.valueOf(amount), token)
+}
+
+fun <T : TokenType> amount(amount: BigDecimal, token: IssuedTokenType<T>): Amount<IssuedTokenType<T>> {
+    return Amount.fromDecimal(amount, token)
+}
 
 // For parsing amounts of embeddable tokens that are not wrapped with an issuer. Like so: 1_000 of token.
-infix fun <T : EmbeddableToken> Int.of(token: T) = AMOUNT(this, token)
+infix fun <T : TokenType> Int.of(token: T): Amount<T> = amount(this, token)
 
-infix fun <T : EmbeddableToken> Long.of(token: T) = AMOUNT(this, token)
-infix fun <T : EmbeddableToken> Double.of(token: T) = AMOUNT(this, token)
-infix fun <T : EmbeddableToken> BigDecimal.of(token: T) = AMOUNT(this, token)
+infix fun <T : TokenType> Long.of(token: T): Amount<T> = amount(this, token)
+infix fun <T : TokenType> Double.of(token: T): Amount<T> = amount(this, token)
+infix fun <T : TokenType> BigDecimal.of(token: T): Amount<T> = amount(this, token)
 
 // As above but for tokens which are wrapped with an issuer. Like so: 1_000 of issuedToken.
-infix fun <T : IssuedToken<U>, U : EmbeddableToken> Int.of(token: T) = AMOUNT(this, token)
+infix fun <T : IssuedTokenType<U>, U : TokenType> Int.of(token: T): Amount<IssuedTokenType<U>> = amount(this, token)
 
-infix fun <T : IssuedToken<U>, U : EmbeddableToken> Long.of(token: T) = AMOUNT(this, token)
-infix fun <T : IssuedToken<U>, U : EmbeddableToken> Double.of(token: T) = AMOUNT(this, token)
-infix fun <T : IssuedToken<U>, U : EmbeddableToken> BigDecimal.of(token: T) = AMOUNT(this, token)
+infix fun <T : IssuedTokenType<U>, U : TokenType> Long.of(token: T): Amount<IssuedTokenType<U>> = amount(this, token)
+infix fun <T : IssuedTokenType<U>, U : TokenType> Double.of(token: T): Amount<IssuedTokenType<U>> = amount(this, token)
+infix fun <T : IssuedTokenType<U>, U : TokenType> BigDecimal.of(token: T): Amount<IssuedTokenType<U>> {
+    return amount(this, token)
+}
 
-// For wrapping amounts of a fixed token definition with an issuer: Amount<Token> -> Amount<IssuedToken<Token>>.
-// Note: these helpers are not compatible with EvolvableDefinitions, only EmbeddableDefinitions.
-infix fun <T : EmbeddableToken> Amount<T>.issuedBy(issuer: Party): Amount<IssuedToken<T>> = _issuedBy(issuer)
+// For wrapping amounts of a token with an issuer: Amount<TokenType> -> Amount<IssuedTokenType<TokenType>>.
+infix fun <T : TokenType> Amount<T>.issuedBy(issuer: Party): Amount<IssuedTokenType<T>> = _issuedBy(issuer)
 
-infix fun <T : EmbeddableToken> T._issuedBy(issuer: Party) = IssuedToken(issuer, this)
-infix fun <T : EmbeddableToken> Amount<T>._issuedBy(issuer: Party): Amount<IssuedToken<T>> {
+infix fun <T : TokenType> Amount<T>._issuedBy(issuer: Party): Amount<IssuedTokenType<T>> {
     return Amount(quantity, displayTokenSize, uncheckedCast(token.issuedBy(issuer)))
 }
 
-// For wrapping Tokens with an issuer: Token -> IssuedToken<Token>
-infix fun <T : EmbeddableToken> T.issuedBy(issuer: Party) = _issuedBy(issuer)
+// For wrapping tokens with an issuer: TokenType -> IssuedTokenType<TokenType>.
+infix fun <T : TokenType> T.issuedBy(issuer: Party): IssuedTokenType<T> = _issuedBy(issuer)
 
-// For adding ownership information to a Token. Wraps an amount of some IssuedToken Token with an OwnedTokenAmount state.
-infix fun <T : EmbeddableToken> Amount<IssuedToken<T>>.ownedBy(owner: AbstractParty) = _ownedBy(owner)
+infix fun <T : TokenType> T._issuedBy(issuer: Party): IssuedTokenType<T> = IssuedTokenType(issuer, this)
 
-infix fun <T : EmbeddableToken> Amount<IssuedToken<T>>._ownedBy(owner: AbstractParty) = OwnedTokenAmount(this, owner)
+// For adding ownership information to a TokenType. Wraps amounts of some IssuedTokenType TokenType with an
+// FungibleToken state.
+infix fun <T : TokenType> Amount<IssuedTokenType<T>>.ownedBy(owner: AbstractParty): FungibleToken<T> = _ownedBy(owner)
 
-// As above but wraps the token with an OwnedToken state.
-infix fun <T : EmbeddableToken> IssuedToken<T>.ownedBy(owner: AbstractParty) = _ownedBy(owner)
+infix fun <T : TokenType> Amount<IssuedTokenType<T>>._ownedBy(owner: AbstractParty): FungibleToken<T> {
+    return FungibleToken(this, owner)
+}
 
-infix fun <T : EmbeddableToken> IssuedToken<T>._ownedBy(owner: AbstractParty) = OwnedToken(this, owner)
+// As above but wraps the token with an NonFungibleToken state.
+infix fun <T : TokenType> IssuedTokenType<T>.ownedBy(owner: AbstractParty): NonFungibleToken<T> = _ownedBy(owner)
 
-// Add a notary to an evolvable token.
-infix fun <T : ContractState> T.withNotary(notary: Party): TransactionState<T> = _withNotary(notary)
+infix fun <T : TokenType> IssuedTokenType<T>._ownedBy(owner: AbstractParty): NonFungibleToken<T> {
+    return NonFungibleToken(this, owner)
+}
 
-infix fun <T : ContractState> T._withNotary(notary: Party): TransactionState<T> {
+// Add a notary to an abstract token.
+infix fun <T : AbstractToken> T.withNotary(notary: Party): TransactionState<T> = _withNotary(notary)
+
+infix fun <T : AbstractToken> T._withNotary(notary: Party): TransactionState<T> {
     return TransactionState(data = this, notary = notary)
 }
 
-/** Helpers for summing [Amount]s of tokens. */
+// Add a notary to an evolvable token.
+infix fun <T : EvolvableTokenType> T.withNotary(notary: Party): TransactionState<T> = _withNotary(notary)
 
-// If the given iterable of [Amount]s yields any elements, sum them, throwing an [IllegalArgumentException] if
-// any of the token types are mismatched; if the iterator yields no elements, return null.
-fun <T : EmbeddableToken> Iterable<Amount<T>>.sumOrNull() = if (!iterator().hasNext()) null else sumOrThrow()
+infix fun <T : EvolvableTokenType> T._withNotary(notary: Party): TransactionState<T> {
+    return TransactionState(data = this, notary = notary)
+}
 
-// Sums the amounts yielded by the given iterable, throwing an [IllegalArgumentException] if any of the token
-// types are mismatched.
-fun <T : EmbeddableToken> Iterable<Amount<T>>.sumOrThrow() = reduce { left, right -> left + right }
+/** Helpers for summing [Amount]s of [IssuedTokenType]s. */
 
-// If the given iterable of [Amount]s yields any elements, sum them, throwing an [IllegalArgumentException] if
-// any of the token types are mismatched; if the iterator yields no elements, return a zero amount of the given
-// token type.
-fun <T : EmbeddableToken> Iterable<Amount<T>>.sumOrZero(token: T): Amount<T> {
-    return if (iterator().hasNext()) sumOrThrow() else Amount.zero(token)
+fun <T : IssuedTokenType<U>, U : TokenType> Iterable<Amount<T>>.sumIssuedTokensOrNull(): Amount<T>? {
+    return if (!iterator().hasNext()) null else sumIssuedTokensOrThrow()
+}
+
+fun <T : IssuedTokenType<U>, U : TokenType> Iterable<Amount<T>>.sumIssuedTokensOrThrow(): Amount<T> {
+    return reduce { left, right -> left + right }
+}
+
+fun <T : IssuedTokenType<U>, U : TokenType> Iterable<Amount<T>>.sumIssuedTokensOrZero(token: T): Amount<T> {
+    return if (iterator().hasNext()) sumIssuedTokensOrThrow() else Amount.zero(token)
+}
+
+/** Helpers for summing [Amount]s of [TokenType]s. */
+
+fun <T : TokenType> Iterable<Amount<T>>.sumTokensOrNull(): Amount<T>? {
+    return if (!iterator().hasNext()) null else sumTokensOrThrow()
+}
+
+fun <T : TokenType> Iterable<Amount<T>>.sumTokensOrThrow(): Amount<T> {
+    return reduce { left, right -> left + right }
+}
+
+fun <T : TokenType> Iterable<Amount<T>>.sumTokensOrZero(token: T): Amount<T> {
+    return if (iterator().hasNext()) sumTokensOrThrow() else Amount.zero(token)
 }
 
 /**
@@ -93,6 +129,6 @@ fun <T : EmbeddableToken> Iterable<Amount<T>>.sumOrZero(token: T): Amount<T> {
  * cares about specific issuers with code that will accept any, or which is imposing issuer constraints via some
  * other mechanism and the additional type safety is not wanted.
  */
-fun <T : EmbeddableToken> Amount<IssuedToken<T>>.withoutIssuer(): Amount<T> {
-    return Amount(quantity, displayTokenSize, token.product)
+fun <T : TokenType> Amount<IssuedTokenType<T>>.withoutIssuer(): Amount<T> {
+    return Amount(quantity, displayTokenSize, token.tokenType)
 }

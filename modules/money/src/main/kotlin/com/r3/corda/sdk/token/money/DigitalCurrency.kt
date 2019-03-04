@@ -9,15 +9,17 @@ import java.util.*
  * A representation of digital money. This implementation somewhat mirrors that of [Currency].
  */
 data class DigitalCurrency(
-        override val symbol: String,
+        override val tokenIdentifier: String,
         override val description: String,
         private val defaultFractionDigits: Int = 0
 ) : Money() {
+    override val tokenClass: String get() = javaClass.canonicalName
     override val displayTokenSize: BigDecimal get() = BigDecimal.ONE.scaleByPowerOfTen(-defaultFractionDigits)
+    override fun toString(): String = tokenIdentifier
 
     @JsonCreator
     constructor(@JsonProperty("currencyCode") currencyCode: String) : this(
-            getInstance(currencyCode).symbol,
+            getInstance(currencyCode).tokenIdentifier,
             getInstance(currencyCode).description,
             getInstance(currencyCode).defaultFractionDigits
     )
@@ -34,6 +36,4 @@ data class DigitalCurrency(
             return registry[currencyCode] ?: throw IllegalArgumentException("$currencyCode doesn't exist.")
         }
     }
-
-    override fun toString() = symbol
 }
