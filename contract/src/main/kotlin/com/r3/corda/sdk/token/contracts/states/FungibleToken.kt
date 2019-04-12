@@ -37,6 +37,12 @@ open class FungibleToken<T : TokenType>(
         override val holder: AbstractParty
 ) : FungibleState<IssuedTokenType<T>>, AbstractToken(), QueryableState {
 
+    override val tokenType: T get() = amount.token.tokenType
+
+    override val issuedTokenType: IssuedTokenType<T> get() = amount.token
+
+    override val issuer: Party get() = amount.token.issuer
+
     override fun toString(): String = "$amount owned by $holderString"
 
     override fun withNewHolder(newHolder: AbstractParty): FungibleToken<T> {

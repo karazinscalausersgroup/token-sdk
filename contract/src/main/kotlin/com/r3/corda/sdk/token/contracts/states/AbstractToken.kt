@@ -1,5 +1,7 @@
 package com.r3.corda.sdk.token.contracts.states
 
+import com.r3.corda.sdk.token.contracts.types.IssuedTokenType
+import com.r3.corda.sdk.token.contracts.types.TokenType
 import net.corda.core.contracts.ContractState
 import net.corda.core.crypto.toStringShort
 import net.corda.core.identity.AbstractParty
@@ -14,6 +16,15 @@ abstract class AbstractToken : ContractState {
 
     /** The current [holder] is always the sole participant. */
     override val participants: List<AbstractParty> get() = listOf(holder)
+
+    /** The [TokenType]. */
+    abstract val tokenType: TokenType
+
+    /** The [IssuedTokenType]. */
+    abstract val issuedTokenType: IssuedTokenType<TokenType>
+
+    /** The issuer [Party]. */
+    abstract val issuer: Party
 
     /**
      * Converts [holder] into a more friendly string. It uses only the x500 organisation for [Party] objects and
