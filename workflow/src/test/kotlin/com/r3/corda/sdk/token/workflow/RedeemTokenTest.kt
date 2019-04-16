@@ -25,7 +25,7 @@ class RedeemTokenTest : MockNetworkTest(numberOfNodes = 3) {
             override val tokenIdentifier: String = "FOO",
             override val displayTokenSize: BigDecimal = BigDecimal.ONE
     ) : FixedTokenType() {
-        override val tokenClass: String get() = javaClass.canonicalName
+        override val tokenClass: Class<*> get() = javaClass
     }
 
     private val fooToken = SomeNonFungibleToken("FOO")
