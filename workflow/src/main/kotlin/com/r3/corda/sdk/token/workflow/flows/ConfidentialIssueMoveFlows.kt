@@ -21,7 +21,7 @@ object ConfidentialIssueFlow {
         @Suspendable
         override fun call(): SignedTransaction {
             val holderSession = initiateFlow(holder)
-            val confidentialHolder = subFlow(RequestConfidentialIdentity.Initiator(holderSession)).party.anonymise()
+            val confidentialHolder = subFlow(RequestConfidentialIdentityFlow(holderSession)).party.anonymise()
             return subFlow(IssueToken.Initiator(token, confidentialHolder, notary, amount, holderSession))
         }
     }
@@ -30,7 +30,7 @@ object ConfidentialIssueFlow {
     class Responder(val otherSession: FlowSession) : FlowLogic<Unit>() {
         @Suspendable
         override fun call() {
-            subFlow(RequestConfidentialIdentity.Responder(otherSession))
+            subFlow(RequestConfidentialIdentityFlowHandler(otherSession))
             subFlow(IssueToken.Responder(otherSession))
         }
     }
@@ -46,7 +46,7 @@ object ConfidentialMoveFlow {
         @Suspendable
         override fun call(): SignedTransaction {
             val holderSession = initiateFlow(holder)
-            val confidentialHolder = subFlow(RequestConfidentialIdentity.Initiator(holderSession)).party.anonymise()
+            val confidentialHolder = subFlow(RequestConfidentialIdentityFlow(holderSession)).party.anonymise()
             return subFlow(MoveToken.Initiator(ownedToken, confidentialHolder, amount, holderSession))
         }
     }
@@ -55,7 +55,7 @@ object ConfidentialMoveFlow {
     class Responder(val otherSession: FlowSession) : FlowLogic<Unit>() {
         @Suspendable
         override fun call() {
-            subFlow(RequestConfidentialIdentity.Responder(otherSession))
+            subFlow(RequestConfidentialIdentityFlowHandler(otherSession))
             subFlow(MoveToken.Responder(otherSession))
         }
     }

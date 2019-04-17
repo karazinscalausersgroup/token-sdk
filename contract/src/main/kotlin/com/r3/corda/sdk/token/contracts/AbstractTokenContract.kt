@@ -21,7 +21,7 @@ import net.corda.core.transactions.LedgerTransaction
  * redeemed correctly. [FungibleTokenContract] and [NonFungibleTokenContract] specify their own implementations for
  * issue, move and redeem.
  */
-abstract class AbstractTokenContract<T : AbstractToken> : Contract {
+abstract class AbstractTokenContract<T : AbstractToken<*>> : Contract {
 
     /** This method can be overridden to handle additional command types. */
     open fun dispatchOnCommand(

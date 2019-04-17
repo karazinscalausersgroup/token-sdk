@@ -35,7 +35,7 @@ import net.corda.core.schemas.QueryableState
 open class NonFungibleToken<T : TokenType>(
         val token: IssuedTokenType<T>,
         override val holder: AbstractParty
-) : AbstractToken(), QueryableState {
+) : AbstractToken<T>(), QueryableState {
 
     override val issuedTokenType: IssuedTokenType<T> get() = token
 

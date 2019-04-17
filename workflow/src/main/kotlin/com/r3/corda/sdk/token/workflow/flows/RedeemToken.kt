@@ -13,17 +13,7 @@ import net.corda.confidential.IdentitySyncFlow
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.CommandData
 import net.corda.core.contracts.StateAndRef
-import net.corda.core.flows.CollectSignaturesFlow
-import net.corda.core.flows.FinalityFlow
-import net.corda.core.flows.FlowLogic
-import net.corda.core.flows.FlowSession
-import net.corda.core.flows.InitiatedBy
-import net.corda.core.flows.InitiatingFlow
-import net.corda.core.flows.ReceiveFinalityFlow
-import net.corda.core.flows.ReceiveStateAndRefFlow
-import net.corda.core.flows.SendStateAndRefFlow
-import net.corda.core.flows.SignTransactionFlow
-import net.corda.core.flows.StartableByRPC
+import net.corda.core.flows.*
 import net.corda.core.identity.Party
 import net.corda.core.node.StatesToRecord
 import net.corda.core.node.services.IdentityService
@@ -73,11 +63,11 @@ object RedeemToken {
             // Generate and send over a new confidential identity, if necessary.
             if (anonymous) {
                 progressTracker.currentStep = CONF_ID
-                subFlow(RequestConfidentialIdentity.Responder(issuerSession))
+                subFlow(RequestConfidentialIdentityFlowHandler(issuerSession))
             }
 
             progressTracker.currentStep = SELECTING_STATES
-            val exitStateAndRefs: List<StateAndRef<AbstractToken>> = if (amount == null) {
+            val exitStateAndRefs: List<StateAndRef<AbstractToken<*>>> = if (amount == null) {
                 // NonFungibleToken path.
                 val ownedTokenStateAndRef = serviceHub.vaultService.ownedTokensByTokenIssuer(ownedToken, issuer).states
                 check(ownedTokenStateAndRef.size == 1) {
@@ -126,10 +116,10 @@ object RedeemToken {
 
             // Request confidential identity, if necessary.
             val otherIdentity = if (redeemNotification.anonymous) {
-                subFlow(RequestConfidentialIdentity.Initiator(otherSession)).party.anonymise()
+                subFlow(RequestConfidentialIdentityFlow(otherSession)).party.anonymise()
             } else otherSession.counterparty
 
-            val stateAndRefsToRedeem = subFlow(ReceiveStateAndRefFlow<AbstractToken>(otherSession))
+            val stateAndRefsToRedeem = subFlow(ReceiveStateAndRefFlow<AbstractToken<*>>(otherSession))
             // Synchronise identities.
             subFlow(IdentitySyncFlow.Receive(otherSession))
             check(stateAndRefsToRedeem.isNotEmpty()) {
@@ -153,7 +143,7 @@ object RedeemToken {
 
     // Check that all states share the same notary.
     @Suspendable
-    private fun checkSameNotary(stateAndRefs: List<StateAndRef<AbstractToken>>) {
+    private fun checkSameNotary(stateAndRefs: List<StateAndRef<AbstractToken<*>>>) {
         val notary = stateAndRefs.first().state.notary
         check(stateAndRefs.all { it.state.notary == notary }) {
             "All states should have the same notary. Automatic notary change isn't supported for now."
@@ -163,7 +153,7 @@ object RedeemToken {
     // Checks if all states have the same issuer. If the issuer is provided as a parameter then it checks if all states
     // were issued by this issuer.
     @Suspendable
-    private fun checkSameIssuer(stateAndRefs: List<StateAndRef<AbstractToken>>, issuer: Party? = null) {
+    private fun checkSameIssuer(stateAndRefs: List<StateAndRef<AbstractToken<*>>>, issuer: Party? = null) {
         val issuerToCheck = issuer ?: stateAndRefs.first().state.data.issuer()
         check(stateAndRefs.all { it.state.data.issuer() == issuerToCheck }) {
             "Tokens with different issuers."
@@ -171,7 +161,7 @@ object RedeemToken {
     }
 
     @Suspendable
-    private fun AbstractToken.issuer(): Party? {
+    private fun AbstractToken<*>.issuer(): Party? {
         return when (this) {
             is FungibleToken<*> -> amount.token.issuer
             is NonFungibleToken<*> -> token.issuer
@@ -181,7 +171,7 @@ object RedeemToken {
 
     // Check if owner of the states is well known. Check if states come from the same owner. Should be called after synchronising identities step.
     @Suspendable
-    private fun checkOwner(identityService: IdentityService, stateAndRefs: List<StateAndRef<AbstractToken>>, counterparty: Party) {
+    private fun checkOwner(identityService: IdentityService, stateAndRefs: List<StateAndRef<AbstractToken<*>>>, counterparty: Party) {
         val owners = stateAndRefs.map { identityService.wellKnownPartyFromAnonymous(it.state.data.holder) }
         check(owners.all { it != null }) {
             "Received states with owner that we don't know about."

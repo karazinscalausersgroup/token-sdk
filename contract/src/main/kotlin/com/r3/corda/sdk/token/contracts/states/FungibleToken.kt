@@ -35,7 +35,7 @@ import net.corda.core.schemas.QueryableState
 open class FungibleToken<T : TokenType>(
         override val amount: Amount<IssuedTokenType<T>>,
         override val holder: AbstractParty
-) : FungibleState<IssuedTokenType<T>>, AbstractToken(), QueryableState {
+) : FungibleState<IssuedTokenType<T>>, AbstractToken<T>(), QueryableState {
 
     override val tokenType: T get() = amount.token.tokenType
 

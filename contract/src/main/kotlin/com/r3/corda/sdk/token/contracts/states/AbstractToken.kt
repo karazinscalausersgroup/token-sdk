@@ -9,7 +9,7 @@ import net.corda.core.identity.AnonymousParty
 import net.corda.core.identity.Party
 
 /** Contains common [NonFungibleToken] functionality. */
-abstract class AbstractToken : ContractState {
+abstract class AbstractToken<T : TokenType> : ContractState {
 
     /** The [AbstractParty] which is currently holding (some amount of) tokens. */
     abstract val holder: AbstractParty
@@ -21,7 +21,7 @@ abstract class AbstractToken : ContractState {
     abstract val tokenType: TokenType
 
     /** The [IssuedTokenType]. */
-    abstract val issuedTokenType: IssuedTokenType<TokenType>
+    abstract val issuedTokenType: IssuedTokenType<T>
 
     /** The issuer [Party]. */
     abstract val issuer: Party
@@ -36,5 +36,5 @@ abstract class AbstractToken : ContractState {
         }
 
     /** For creating a copy of an existing [AbstractToken] with a new holder. */
-    abstract fun withNewHolder(newHolder: AbstractParty): AbstractToken
+    abstract fun withNewHolder(newHolder: AbstractParty): AbstractToken<T>
 }
