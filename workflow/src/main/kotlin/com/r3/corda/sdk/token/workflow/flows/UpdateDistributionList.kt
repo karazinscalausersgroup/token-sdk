@@ -37,16 +37,12 @@ object UpdateDistributionList {
             val evolvableToken = tokenPointer.pointer.resolve(serviceHub).state.data
             val distributionListUpdate = DistributionListUpdate(oldParty, newParty, evolvableToken.linearId)
             val maintainers = evolvableToken.maintainers
-            // TODO What about opening new sessions? what if we send token back to one of the maintainers?
-            // TODO What if we are the maintainer?
+            // TODO What if we are the maintainer - fix.
             val maintainersSessions = maintainers.map { initiateFlow(it) }
             // Collect signatures from old and new parties
             val updateBytes = distributionListUpdate.serialize()
             val ourSig = serviceHub.keyManagementService.sign(updateBytes.bytes, oldParty.owningKey)
             val signedUpdate = SignedData(updateBytes, ourSig)
-            // TODO Does the new party have to sign the update? We can assume that this flow was called after the move was recorded.
-//            val newPartySession = initiateFlow(newParty)
-//            subFlow()
             // TODO This is naive quick fix approach for now, we should use data distribution groups
             maintainersSessions.forEach {
                 it.send(signedUpdate)
@@ -74,10 +70,6 @@ object UpdateDistributionList {
             // Check that newParty is well known party.
             serviceHub.identityService.wellKnownPartyFromAnonymous(distListUpdate.newParty)
                     ?: throw IllegalArgumentException("Don't know about party: ${distListUpdate.newParty}")
-            // TODO This is limited version of distribution lists, for now some maintainers won't have view of all parties.
-//            check(getDistributionRecord(distListUpdate.linearId, distListUpdate.oldParty).isNotEmpty()) {
-//                "Party ${distListUpdate.oldParty} is not in distribution list for ${distListUpdate.linearId}"
-//            }
             if (getDistributionRecord(distListUpdate.linearId, distListUpdate.newParty).isEmpty()) {
                 // Add new party to the dist list for this token.
                 serviceHub.addPartyToDistributionList(distListUpdate.newParty, distListUpdate.linearId)
