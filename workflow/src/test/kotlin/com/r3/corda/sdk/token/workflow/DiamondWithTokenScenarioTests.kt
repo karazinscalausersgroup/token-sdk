@@ -73,9 +73,9 @@ class DiamondWithTokenScenarioTests : JITMockNetworkTests() {
         // This should be reflected to the report participants
         val updatedDiamond = publishedDiamond.state.data.copy(color = DiamondGradingReport.ColorScale.B)
         val updateDiamondTx = gic.updateEvolvableToken(publishedDiamond, updatedDiamond).getOrThrow(Duration.ofSeconds(5))
-        // TODO Use a distribution group / subscription to inform Charlie of a change
-        assertRecordsTransaction(updateDiamondTx, gic, denise) // TODO Should include Charlie
-        assertNotRecordsTransaction(updateDiamondTx, alice, bob)
+        assertRecordsTransaction(updateDiamondTx, gic, denise, charlie)
+//        assertNotRecordsTransaction(updateDiamondTx, alice, bob)
+        assertNotRecordsTransaction(updateDiamondTx, alice)
 
         // STEP 06: Charlie redeems the token with Denise
         // This should exit the holdable token
@@ -88,13 +88,13 @@ class DiamondWithTokenScenarioTests : JITMockNetworkTests() {
 
         // GIC, Denise, and Charlie have the latest evolvable token; Alice and Bob do not
         val newDiamond = updateDiamondTx.singleOutput<DiamondGradingReport>()
-        assertHasStateAndRef(newDiamond, gic, denise) // TODO Should include Charlie
+        assertHasStateAndRef(newDiamond, gic, denise, charlie)
         assertNotHasStateAndRef(newDiamond, alice, bob)
 
         // Alice and Bob have an outdated (and unconsumed) evolvable token; GIC, Denise, and Charlie do not
         val oldDiamond = publishDiamondTx.singleOutput<DiamondGradingReport>()
         assertHasStateAndRef(oldDiamond, alice, bob)
-        assertNotHasStateAndRef(oldDiamond, gic, denise) // TODO Should include Charlie
+        assertNotHasStateAndRef(oldDiamond, gic, denise, charlie)
 
         // No one has nonfungible (discrete) tokens
         assertNotHasStateAndRef(issueTokenTx.singleOutput<NonFungibleToken<TokenPointer<DiamondGradingReport>>>(), gic, denise, alice, bob, charlie)

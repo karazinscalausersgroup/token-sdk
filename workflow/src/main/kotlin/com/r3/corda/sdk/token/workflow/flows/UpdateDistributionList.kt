@@ -3,6 +3,7 @@ package com.r3.corda.sdk.token.workflow.flows
 import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.sdk.token.contracts.states.EvolvableTokenType
 import com.r3.corda.sdk.token.contracts.types.TokenPointer
+import com.r3.corda.sdk.token.workflow.schemas.DistributionRecord
 import com.r3.corda.sdk.token.workflow.utilities.addPartyToDistributionList
 import com.r3.corda.sdk.token.workflow.utilities.getDistributionList
 import net.corda.core.contracts.UniqueIdentifier
@@ -10,17 +11,22 @@ import net.corda.core.crypto.SignedData
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.FlowSession
 import net.corda.core.flows.InitiatedBy
+import net.corda.core.flows.InitiatingFlow
 import net.corda.core.identity.Party
 import net.corda.core.serialization.CordaSerializable
 import net.corda.core.serialization.serialize
 import net.corda.core.utilities.unwrap
+import java.util.*
+import javax.persistence.criteria.CriteriaQuery
 
 object UpdateDistributionList {
 
     @CordaSerializable
     data class DistributionListUpdate(val oldParty: Party, val newParty: Party, val linearId: UniqueIdentifier)
 
-    // TODO Also ineffective if we are heavily using confidential identities
+    // TODO It's ineffective if we are heavily using confidential identities, because we contact maintainers every time we do move
+    // tokens with token pointers.
+    @InitiatingFlow
     class Initiator<T : EvolvableTokenType>(
             val tokenPointer: TokenPointer<T>,
             val oldParty: Party,
@@ -31,16 +37,17 @@ object UpdateDistributionList {
             val evolvableToken = tokenPointer.pointer.resolve(serviceHub).state.data
             val distributionListUpdate = DistributionListUpdate(oldParty, newParty, evolvableToken.linearId)
             val maintainers = evolvableToken.maintainers
+            // TODO What about opening new sessions? what if we send token back to one of the maintainers?
+            // TODO What if we are the maintainer?
             val maintainersSessions = maintainers.map { initiateFlow(it) }
             // Collect signatures from old and new parties
-            // TODO surely there is some helper function for those three lines below?
             val updateBytes = distributionListUpdate.serialize()
             val ourSig = serviceHub.keyManagementService.sign(updateBytes.bytes, oldParty.owningKey)
             val signedUpdate = SignedData(updateBytes, ourSig)
-            // TODO new party signs the update?
+            // TODO Does the new party have to sign the update? We can assume that this flow was called after the move was recorded.
 //            val newPartySession = initiateFlow(newParty)
 //            subFlow()
-            // TODO this is naive quick fix approach for now, should use data dist groups
+            // TODO This is naive quick fix approach for now, we should use data distribution groups
             maintainersSessions.forEach {
                 it.send(signedUpdate)
             }
@@ -54,45 +61,42 @@ object UpdateDistributionList {
             val distListUpdate = otherSession.receive<SignedData<DistributionListUpdate>>().unwrap {
                 val update = it.verified()
                 // Check that request is signed by the oldParty.
-                check(update.oldParty.owningKey == it.sig.by)
-                // TODO add same check for new party
+                check(update.oldParty.owningKey == it.sig.by) {
+                    "Got distribution list update request signed by a wrong party."
+                }
                 // Check that the request comes from that party.
-                check(update.oldParty == otherSession.counterparty)
+                check(update.oldParty == otherSession.counterparty) {
+                    "Got distribution list update request from a counterparty: ${otherSession.counterparty} " +
+                            "that isn't a signer of request: ${update.oldParty}."
+                }
                 update
             }
             // Check that newParty is well known party.
             serviceHub.identityService.wellKnownPartyFromAnonymous(distListUpdate.newParty)
                     ?: throw IllegalArgumentException("Don't know about party: ${distListUpdate.newParty}")
-
-            // TODO Slightly ineffective, perform direct query for pairs party, linearId
-            val distributionList = getDistributionList(serviceHub, distListUpdate.linearId).map { it.party }.toSet()
-            check(distListUpdate.oldParty in distributionList) {
-                "Party ${distListUpdate.oldParty} is not in distribution list for ${distListUpdate.linearId}"
-            }
-            if (distListUpdate.newParty !in distributionList) {
+            // TODO This is limited version of distribution lists, for now some maintainers won't have view of all parties.
+//            check(getDistributionRecord(distListUpdate.linearId, distListUpdate.oldParty).isNotEmpty()) {
+//                "Party ${distListUpdate.oldParty} is not in distribution list for ${distListUpdate.linearId}"
+//            }
+            if (getDistributionRecord(distListUpdate.linearId, distListUpdate.newParty).isEmpty()) {
                 // Add new party to the dist list for this token.
                 serviceHub.addPartyToDistributionList(distListUpdate.newParty, distListUpdate.linearId)
             }
-            // TODO What about old party?
-            // Remove entry (oldParty, linearId)? what if they have more assets dependent on that token id? for example lots of fungible etc
         }
-    }
-}
 
-// maybe use the tx? but issuer doesn't have to see the tx
-object DistributionListSign {
-    class Initiator() : FlowLogic<SignedData<UpdateDistributionList.DistributionListUpdate>>() {
         @Suspendable
-        override fun call(): SignedData<UpdateDistributionList.DistributionListUpdate> {
-            //check that one of the parties is ours
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        }
-    }
-
-    class Responder() : FlowLogic<SignedData<UpdateDistributionList.DistributionListUpdate>>() {
-        @Suspendable
-        override fun call(): SignedData<UpdateDistributionList.DistributionListUpdate> {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        private fun getDistributionRecord(linearId: UniqueIdentifier, party: Party): List<DistributionRecord> {
+            return serviceHub.withEntityManager {
+                val query: CriteriaQuery<DistributionRecord> = criteriaBuilder.createQuery(DistributionRecord::class.java)
+                query.apply {
+                    val root = from(DistributionRecord::class.java)
+                    val linearIdEq = criteriaBuilder.equal(root.get<UUID>("linearId"), linearId.id)
+                    val partyEq = criteriaBuilder.equal(root.get<Party>("party"), party)
+                    where(criteriaBuilder.and(linearIdEq, partyEq))
+                    select(root)
+                }
+                createQuery(query).resultList
+            }
         }
     }
 }
